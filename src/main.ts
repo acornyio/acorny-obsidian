@@ -7,7 +7,7 @@ import { writeSourceNote } from './vaultWriter.js'
 import { SyncEngine } from './syncEngine.js'
 import { nextAutoDelayMs } from './scheduler.js'
 
-const DEFAULT_STATE: PluginState = { lastCursor: null, sourceIndex: {} }
+const DEFAULT_STATE: PluginState = { lastCursor: null, sourceIndex: {}, connectionId: null }
 
 interface PersistShape {
   settings?: Partial<AcornySettings>
@@ -20,6 +20,9 @@ export default class AcornyPlugin extends Plugin {
   private statusEl!: HTMLElement
   private engine!: SyncEngine
   private autoTimer: number | null = null
+  /** Set in onunload. An in-flight sync's continuation checks this so a disabled/
+   *  reloaded plugin never reschedules a timer, writes status, or shows notices. */
+  private disposed = false
 
   async onload(): Promise<void> {
     await this.loadPersisted()
@@ -34,11 +37,16 @@ export default class AcornyPlugin extends Plugin {
       getSettings: () => this.settings,
       loadState: async () => this.state,
       saveState: async (s) => { this.state = s; await this.persist() },
-      fetchPage: (cursor) =>
-        fetchFeedPage(http, { serverUrl: this.settings.serverUrl, token: this.settings.exportToken, cursor }),
+      // The engine snapshots the connection at sync start and passes it here, so
+      // a mid-sync Settings edit cannot make pages come from different accounts.
+      fetchPage: ({ serverUrl, token, cursor }) =>
+        fetchFeedPage(http, { serverUrl, token, cursor }),
       writeSource: (source, highlights, index) =>
         writeSourceNote(gateway, this.settings.folderPath, source, highlights, index),
       onStatus: (status, detail) => this.setStatus(status, detail),
+      // Stop an in-flight drain (and skip persistence) once the plugin unloads,
+      // so a disabled/reloaded instance cannot keep writing or clobber state.
+      isAborted: () => this.disposed,
     })
 
     this.statusEl = this.addStatusBarItem()
@@ -59,6 +67,7 @@ export default class AcornyPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.disposed = true
     this.clearAuto()
   }
 
@@ -69,7 +78,7 @@ export default class AcornyPlugin extends Plugin {
   /** Apply a scheduler decision: clear the current timer, then set a new one (or pause if null). */
   private scheduleAuto(delayMs: number | null): void {
     this.clearAuto()
-    if (delayMs === null || delayMs <= 0) return
+    if (this.disposed || delayMs === null || delayMs <= 0) return
     this.autoTimer = window.setTimeout(() => { void this.runSync() }, delayMs)
   }
 
@@ -81,11 +90,15 @@ export default class AcornyPlugin extends Plugin {
   }
 
   private async runSync(): Promise<void> {
+    if (this.disposed) return
     if (!this.settings.exportToken) {
       new Notice('Acorny: set your export token in Settings first.')
       return
     }
     const res = await this.engine.sync()
+    // The plugin may have been disabled/reloaded while sync() was in flight —
+    // bail before touching UI, persisting follow-up state, or rescheduling.
+    if (this.disposed) return
     if (res.status === 'completed') {
       new Notice(`Acorny: synced ${res.added} new highlight(s).`)
     } else if (res.status === 'auth_failed') {
@@ -101,6 +114,7 @@ export default class AcornyPlugin extends Plugin {
   }
 
   private setStatus(status: SyncStatus, detail?: string): void {
+    if (this.disposed) return
     const label: Record<SyncStatus, string> = {
       idle: 'Acorny: idle',
       syncing: 'Acorny: syncing…',

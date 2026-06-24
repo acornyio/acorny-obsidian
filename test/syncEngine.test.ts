@@ -9,7 +9,7 @@ function hl(id: string): ExportFeedHighlight {
 }
 
 function makeEngine(pages: ExportFeedResponse[], over: Partial<ConstructorParameters<typeof SyncEngine>[0]> = {}) {
-  let state: PluginState = { lastCursor: null, sourceIndex: {} }
+  let state: PluginState = { lastCursor: null, sourceIndex: {}, connectionId: null }
   const saveState = vi.fn(async (s: PluginState) => { state = s })
   const writeSource = vi.fn(async () => ({ path: 'p', added: 1 }))
   const onStatus = vi.fn()
@@ -68,5 +68,80 @@ describe('SyncEngine.sync', () => {
     })
     expect(await engine.sync()).toEqual({ status: 'backoff', retryAfterSeconds: 42 })
     expect(saveState).not.toHaveBeenCalled()
+  })
+
+  it('discards a cursor/index that belong to a different connection', async () => {
+    // Persisted state was minted for a DIFFERENT server/account.
+    let state: PluginState = { lastCursor: 'old-cursor', sourceIndex: { s1: 'stale.md' }, connectionId: 'other-conn' }
+    const seenCursors: (string | null)[] = []
+    const fetchPage = vi.fn(async (req: { serverUrl: string; token: string; cursor: string | null }) => {
+      seenCursors.push(req.cursor)
+      return { highlights: [], nextCursor: 'fresh', done: true } as ExportFeedResponse
+    })
+    const saveState = vi.fn(async (s: PluginState) => { state = s })
+    const engine = new SyncEngine({
+      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      loadState: async () => state,
+      saveState,
+      fetchPage,
+      writeSource: vi.fn(async () => ({ path: 'p', added: 0 })),
+      onStatus: vi.fn(),
+    })
+
+    await engine.sync()
+
+    expect(seenCursors[0]).toBeNull() // foreign cursor discarded; first page fetched fresh
+    expect(saveState.mock.calls[0][0].sourceIndex).toEqual({}) // stale index cleared
+    expect(saveState.mock.calls[0][0].connectionId).not.toBe('other-conn') // re-stamped to current
+  })
+
+  it('aborts the in-flight drain and does NOT persist when disposed mid-sync', async () => {
+    // The lifecycle flips to "disposed" while the first page is being fetched.
+    let disposed = false
+    const pages: ExportFeedResponse[] = [
+      { highlights: [hl('a')], nextCursor: 'c1', done: false },
+      { highlights: [hl('b')], nextCursor: 'c2', done: true },
+    ]
+    let call = 0
+    const saveState = vi.fn(async () => {})
+    const engine = new SyncEngine({
+      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      loadState: async () => ({ lastCursor: null, sourceIndex: {}, connectionId: null }),
+      saveState,
+      fetchPage: vi.fn(async () => { const p = pages[call++]; disposed = true; return p }),
+      writeSource: vi.fn(async () => ({ path: 'p', added: 1 })),
+      onStatus: vi.fn(),
+      isAborted: () => disposed,
+    })
+
+    const res = await engine.sync()
+
+    expect(res).toEqual({ status: 'skipped' }) // bailed without completing
+    expect(saveState).not.toHaveBeenCalled() // stale instance must not clobber persisted state
+    expect(call).toBe(1) // stopped after the first page; did not fetch page 2
+  })
+
+  it('keeps the cursor when the connection is unchanged', async () => {
+    // connectionId matches what the engine computes for serverUrl 's' + token 't'.
+    const { connectionId } = await import('../src/connection.js')
+    const conn = connectionId('s', 't')
+    let state: PluginState = { lastCursor: 'keep-me', sourceIndex: { s1: 'note.md' }, connectionId: conn }
+    const seenCursors: (string | null)[] = []
+    const fetchPage = vi.fn(async (req: { cursor: string | null }) => {
+      seenCursors.push(req.cursor)
+      return { highlights: [], nextCursor: 'next', done: true } as ExportFeedResponse
+    })
+    const engine = new SyncEngine({
+      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      loadState: async () => state,
+      saveState: vi.fn(async (s: PluginState) => { state = s }),
+      fetchPage: fetchPage as never,
+      writeSource: vi.fn(async () => ({ path: 'p', added: 0 })),
+      onStatus: vi.fn(),
+    })
+
+    await engine.sync()
+
+    expect(seenCursors[0]).toBe('keep-me') // existing cursor replayed for the same connection
   })
 })

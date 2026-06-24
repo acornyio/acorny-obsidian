@@ -35,6 +35,13 @@ export interface PluginState {
   lastCursor: string | null
   /** sourceId -> vault-relative note path (cache of the frontmatter anchor). */
   sourceIndex: Record<string, string>
+  /**
+   * Identity of the connection (server + account) the cursor/index belong to.
+   * When the current connection differs, the cursor and index are discarded so a
+   * cursor minted for one account is never replayed against another. `null` for
+   * fresh installs and pre-upgrade state (forces a one-time full re-sync).
+   */
+  connectionId: string | null
 }
 
 export type SyncStatus = 'idle' | 'syncing' | 'backoff' | 'auth_failed'

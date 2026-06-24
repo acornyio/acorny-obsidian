@@ -20,4 +20,23 @@ describe('sanitizeFileBaseName', () => {
     const long = 'x'.repeat(300)
     expect(sanitizeFileBaseName(long, 'src1').length).toBeLessThanOrEqual(120)
   })
+  it('truncates long CJK titles within the filesystem byte budget', () => {
+    // 120 CJK chars are ~360 UTF-8 bytes, which exceeds the 255-byte single-name
+    // limit on ext4/Android. The result must fit a conservative byte budget.
+    const long = '中'.repeat(300)
+    const out = sanitizeFileBaseName(long, 'src1')
+    expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(180)
+    expect(out.length).toBeLessThanOrEqual(120)
+    expect(out.length).toBeGreaterThan(0)
+  })
+  it('does not split a surrogate pair when truncating emoji titles', () => {
+    const long = '😀'.repeat(200) // each: 2 UTF-16 units, 4 UTF-8 bytes
+    const out = sanitizeFileBaseName(long, 'src1')
+    expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(180)
+    // no lone surrogate left behind by a mid-pair cut
+    const hasLoneSurrogate = [...out].some(
+      (ch) => ch.length === 1 && ch.charCodeAt(0) >= 0xd800 && ch.charCodeAt(0) <= 0xdfff,
+    )
+    expect(hasLoneSurrogate).toBe(false)
+  })
 })
