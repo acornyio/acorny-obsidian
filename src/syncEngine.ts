@@ -2,6 +2,7 @@ import type {
   AcornySettings, ExportFeedHighlight, ExportFeedResponse, ExportFeedSource, PluginState, SyncStatus,
 } from './types.js'
 import { AuthError, RateLimitError } from './apiClient.js'
+import { connectionId } from './connection.js'
 
 export type SyncResult =
   | { status: 'completed'; pages: number; added: number }
@@ -13,13 +14,19 @@ export interface SyncEngineDeps {
   getSettings: () => AcornySettings
   loadState: () => Promise<PluginState>
   saveState: (state: PluginState) => Promise<void>
-  fetchPage: (cursor: string | null) => Promise<ExportFeedResponse>
+  fetchPage: (req: { serverUrl: string; token: string; cursor: string | null }) => Promise<ExportFeedResponse>
   writeSource: (
     source: ExportFeedSource,
     highlights: ExportFeedHighlight[],
     index: Record<string, string>,
   ) => Promise<{ path: string; added: number }>
   onStatus: (status: SyncStatus, detail?: string) => void
+  /**
+   * Optional lifecycle check. When it returns true (e.g. the plugin was disabled
+   * or reloaded), the drain stops before the next fetch/write and the run does NOT
+   * persist state — so a stale instance can never clobber a fresh one's data.
+   */
+  isAborted?: () => boolean
 }
 
 const MAX_PAGES = 10_000 // safety guard against a server bug looping forever
@@ -33,16 +40,29 @@ export class SyncEngine {
     this.running = true
     this.deps.onStatus('syncing')
     try {
+      // Snapshot the connection ONCE at sync start so every page of this drain uses
+      // the same server/token even if the user edits Settings mid-sync.
+      const settings = this.deps.getSettings()
+      const { serverUrl, exportToken: token } = settings
+      const conn = connectionId(serverUrl, token)
+
+      const aborted = this.deps.isAborted ?? (() => false)
+
       const state = await this.deps.loadState()
-      const index = { ...state.sourceIndex }
-      let cursor = state.lastCursor
+      // If the persisted cursor/index belong to a different server or account,
+      // discard them — replaying a foreign cursor can silently skip data.
+      const sameConnection = state.connectionId === conn
+      const index = sameConnection ? { ...state.sourceIndex } : {}
+      let cursor = sameConnection ? state.lastCursor : null
       let pages = 0
       let added = 0
 
       for (;;) {
-        const page = await this.deps.fetchPage(cursor)
+        if (aborted()) return { status: 'skipped' }
+        const page = await this.deps.fetchPage({ serverUrl, token, cursor })
         pages += 1
         for (const [, group] of groupBySource(page.highlights)) {
+          if (aborted()) return { status: 'skipped' }
           const result = await this.deps.writeSource(group.source, group.highlights, index)
           added += result.added
         }
@@ -51,7 +71,10 @@ export class SyncEngine {
         if (pages >= MAX_PAGES) break
       }
 
-      await this.deps.saveState({ lastCursor: cursor, sourceIndex: index })
+      // Never persist on behalf of a disposed instance — it would overwrite the
+      // live instance's state with a stale snapshot.
+      if (aborted()) return { status: 'skipped' }
+      await this.deps.saveState({ lastCursor: cursor, sourceIndex: index, connectionId: conn })
       this.deps.onStatus('idle')
       return { status: 'completed', pages, added }
     } catch (error) {
