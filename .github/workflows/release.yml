@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag that exactly matches the version in manifest.json (e.g. 0.1.0, no "v"
 # prefix — Obsidian requires the release tag == manifest version). This builds the
-# plugin and creates a DRAFT GitHub release with the assets Obsidian reads.
+# plugin and publishes a GitHub release with the assets Obsidian reads.
 on:
   push:
     tags:
@@ -43,12 +43,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Create draft release
+      - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           gh release create "$tag" \
             --title="$tag" \
-            --draft \
             main.js manifest.json
