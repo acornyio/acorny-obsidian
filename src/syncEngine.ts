@@ -86,6 +86,9 @@ export class SyncEngine {
         this.deps.onStatus('backoff', `Rate limited, retry in ${error.retryAfterSeconds}s`)
         return { status: 'backoff', retryAfterSeconds: error.retryAfterSeconds }
       }
+      // Unexpected error (not auth/rate-limit): surface it instead of swallowing,
+      // so failures are diagnosable from the console rather than only the tooltip.
+      console.error('[Acorny] Unexpected sync error:', error)
       this.deps.onStatus('backoff', error instanceof Error ? error.message : 'Sync failed')
       return { status: 'backoff', retryAfterSeconds: 60 }
     } finally {

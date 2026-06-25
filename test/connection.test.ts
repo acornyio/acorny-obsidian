@@ -17,4 +17,9 @@ describe('connectionId', () => {
   it('treats case-different URL paths as different connections (path is case-sensitive)', () => {
     expect(connectionId('https://host/API', 't')).not.toBe(connectionId('https://host/api', 't'))
   })
+  it('does not embed the raw token (stored as a hash)', () => {
+    const id = connectionId('https://api.acorny.io', 'acornyexp_supersecretvalue')
+    expect(id).not.toContain('supersecretvalue')
+    expect(id).not.toContain('acornyexp_')
+  })
 })
