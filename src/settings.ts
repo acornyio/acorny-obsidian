@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: AcornySettings = {
 export interface SettingsHost extends Plugin {
   settings: AcornySettings
   saveSettings(): Promise<void>
-  triggerSync(): void
+  triggerSync(): Promise<void>
 }
 
 export class AcornySettingTab extends PluginSettingTab {
@@ -69,6 +69,18 @@ export class AcornySettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Sync now')
-      .addButton((b) => b.setButtonText('Sync now').setCta().onClick(() => this.host.triggerSync()))
+      .addButton((b) =>
+        b.setButtonText('Sync now').setCta().onClick(async () => {
+          // Give the click visible feedback: disable + relabel while the sync runs,
+          // then restore. Also prevents double-clicks during an in-flight sync.
+          b.setDisabled(true)
+          b.setButtonText('Syncing…')
+          try {
+            await this.host.triggerSync()
+          } finally {
+            b.setButtonText('Sync now')
+            b.setDisabled(false)
+          }
+        }))
   }
 }

@@ -1,13 +1,18 @@
 import { dump } from 'js-yaml'
 import type { ExportFeedHighlight, ExportFeedSource } from './types.js'
 import { blockId } from './blockId.js'
+import { resolveSourceHref } from './sourceHref.js'
 
 export function toFrontmatter(source: ExportFeedSource, tags: string[] = []): string {
   // Build an ordered object and let js-yaml handle all escaping (colons, quotes,
   // newlines, brackets). Hand-rolled quoting previously missed newline escaping.
   const data: Record<string, unknown> = { title: source.title }
   if (source.author) data.author = source.author
-  data.source = source.canonicalUrl
+  // Match the web app's "From" link: prefer an http(s) canonicalUrl, else derive
+  // from the author host; omit `source` entirely when no usable link exists
+  // (rather than writing a dead `source://…` internal URI).
+  const sourceHref = resolveSourceHref(source.type, source.canonicalUrl, source.author)
+  if (sourceHref) data.source = sourceHref
   if (tags.length > 0) data.tags = tags
   data['acorny-source-id'] = source.id
 

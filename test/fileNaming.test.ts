@@ -39,4 +39,15 @@ describe('sanitizeFileBaseName', () => {
     )
     expect(hasLoneSurrogate).toBe(false)
   })
+  it('strips newlines/control chars from the title (would be ENOENT on Windows)', () => {
+    const NL = String.fromCharCode(10)
+    const CRLF = String.fromCharCode(13, 10)
+    const TAB = String.fromCharCode(9)
+    // the real-world case: a hard line break inside the source title
+    expect(sanitizeFileBaseName(`专栏${NL} - 博客中国`, 'src1')).toBe('专栏 - 博客中国')
+    expect(sanitizeFileBaseName(`a${TAB}b${CRLF}c`, 'src1')).toBe('a b c')
+    // no control character survives into the result
+    const out = sanitizeFileBaseName(`x${String.fromCharCode(0, 7)}y`, 'src1')
+    expect([...out].every((ch) => (ch.codePointAt(0) ?? 0) > 0x1f)).toBe(true)
+  })
 })

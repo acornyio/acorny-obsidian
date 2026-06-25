@@ -44,6 +44,18 @@ describe('toFrontmatter', () => {
     const body = toFrontmatter({ ...source, author: null }).replace(/^---\n/, '').replace(/\n---$/, '')
     expect(load(body)).not.toHaveProperty('author')
   })
+  it('derives source from the author host when canonicalUrl is an internal source:// URI (matches web app)', () => {
+    const body = toFrontmatter({
+      ...source, type: 'document', canonicalUrl: 'source://document/abc', author: 'zh.wikipedia.org',
+    }).replace(/^---\n/, '').replace(/\n---$/, '')
+    expect((load(body) as Record<string, unknown>).source).toBe('https://zh.wikipedia.org')
+  })
+  it('omits source when no usable link can be derived (no dead source:// link)', () => {
+    const body = toFrontmatter({
+      ...source, type: 'document', canonicalUrl: 'source://document/abc', author: null,
+    }).replace(/^---\n/, '').replace(/\n---$/, '')
+    expect(load(body)).not.toHaveProperty('source')
+  })
   it('safely serializes titles with YAML-hostile characters (colon, quote, newline, brackets)', () => {
     for (const title of ['a: b', 'a "q" b', 'line1\nline2', '[bracketed]']) {
       const body = toFrontmatter({ ...source, title }).replace(/^---\n/, '').replace(/\n---$/, '')

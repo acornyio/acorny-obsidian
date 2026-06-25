@@ -71,8 +71,9 @@ export default class AcornyPlugin extends Plugin {
     this.clearAuto()
   }
 
-  triggerSync(): void {
-    void this.runSync()
+  /** Returns the in-flight sync promise so the Settings button can show progress. */
+  triggerSync(): Promise<void> {
+    return this.runSync()
   }
 
   /** Apply a scheduler decision: clear the current timer, then set a new one (or pause if null). */
