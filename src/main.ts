@@ -53,7 +53,8 @@ export default class AcornyPlugin extends Plugin {
     this.setStatus('idle')
 
     this.addRibbonIcon('refresh-cw', 'Acorny: Sync now', () => void this.runSync())
-    this.addCommand({ id: 'acorny-sync-now', name: 'Sync now', callback: () => void this.runSync() })
+    // Command id must NOT include the plugin id — Obsidian prefixes it automatically.
+    this.addCommand({ id: 'sync-now', name: 'Sync now', callback: () => void this.runSync() })
     this.addSettingTab(new AcornySettingTab(this.app, this))
 
     if (this.settings.syncOnStartup) {
