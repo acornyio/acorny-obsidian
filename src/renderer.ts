@@ -1,11 +1,11 @@
-import { dump } from 'js-yaml'
+import { stringifyYaml } from 'obsidian'
 import type { ExportFeedHighlight, ExportFeedSource } from './types.js'
 import { blockId } from './blockId.js'
 import { resolveSourceHref } from './sourceHref.js'
 
 export function toFrontmatter(source: ExportFeedSource, tags: string[] = []): string {
-  // Build an ordered object and let js-yaml handle all escaping (colons, quotes,
-  // newlines, brackets). Hand-rolled quoting previously missed newline escaping.
+  // Build an ordered object and let Obsidian's YAML serializer handle all escaping
+  // (colons, quotes, newlines, brackets). Using the built-in avoids bundling js-yaml.
   const data: Record<string, unknown> = { title: source.title }
   if (source.author) data.author = source.author
   // Match the web app's "From" link: prefer an http(s) canonicalUrl, else derive
@@ -16,8 +16,7 @@ export function toFrontmatter(source: ExportFeedSource, tags: string[] = []): st
   if (tags.length > 0) data.tags = tags
   data['acorny-source-id'] = source.id
 
-  // lineWidth: -1 disables line folding so long URLs/titles stay on one line.
-  const body = dump(data, { lineWidth: -1 }).replace(/\n$/, '')
+  const body = stringifyYaml(data).replace(/\n+$/, '')
   return `---\n${body}\n---`
 }
 
