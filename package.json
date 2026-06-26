@@ -1,6 +1,6 @@
 {
   "name": "acorny-obsidian",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sync your Acorny highlights into your vault as Markdown notes.",
   "main": "main.js",
   "type": "module",
