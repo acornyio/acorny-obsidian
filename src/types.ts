@@ -24,7 +24,6 @@ export interface ExportFeedResponse {
 }
 
 export interface AcornySettings {
-  serverUrl: string // e.g. https://api.acorny.io
   exportToken: string // acornyexp_...
   folderPath: string // vault-relative folder for synced notes
   syncOnStartup: boolean

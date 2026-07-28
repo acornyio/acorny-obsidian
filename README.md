@@ -15,7 +15,6 @@ Sync your [Acorny](https://acorny.io) highlights into your Obsidian vault as Mar
 1. You need an Acorny account. In Acorny, go to **Settings → Export tokens** and create a read-only export token (it looks like `acornyexp_…`).
 2. Install this plugin (see below), enable it, and open its settings.
 3. Set:
-   - **Server URL** — your Acorny API base URL (default `https://api.acorny.io`).
    - **Export token** — paste the token from step 1.
    - **Folder** — the vault folder to write notes into (default `Acorny`).
    - **Sync on startup** / **Auto-sync interval** — optional automatic triggers (`0` disables interval polling).

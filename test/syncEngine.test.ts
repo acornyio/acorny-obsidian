@@ -16,7 +16,7 @@ function makeEngine(pages: ExportFeedResponse[], over: Partial<ConstructorParame
   let call = 0
   const fetchPage = vi.fn(async () => pages[call++])
   const engine = new SyncEngine({
-    getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+    getSettings: () => ({ exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
     loadState: async () => state,
     saveState,
     fetchPage,
@@ -80,7 +80,7 @@ describe('SyncEngine.sync', () => {
     })
     const saveState = vi.fn(async (s: PluginState) => { state = s })
     const engine = new SyncEngine({
-      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      getSettings: () => ({ exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
       loadState: async () => state,
       saveState,
       fetchPage,
@@ -105,7 +105,7 @@ describe('SyncEngine.sync', () => {
     let call = 0
     const saveState = vi.fn(async () => {})
     const engine = new SyncEngine({
-      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      getSettings: () => ({ exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
       loadState: async () => ({ lastCursor: null, sourceIndex: {}, connectionId: null }),
       saveState,
       fetchPage: vi.fn(async () => { const p = pages[call++]; disposed = true; return p }),
@@ -122,9 +122,10 @@ describe('SyncEngine.sync', () => {
   })
 
   it('keeps the cursor when the connection is unchanged', async () => {
-    // connectionId matches what the engine computes for serverUrl 's' + token 't'.
+    // connectionId matches what the engine computes for the built-in server + token 't'.
     const { connectionId } = await import('../src/connection.js')
-    const conn = connectionId('s', 't')
+    const { ACORNY_API_BASE_URL } = await import('../src/apiClient.js')
+    const conn = connectionId(ACORNY_API_BASE_URL, 't')
     let state: PluginState = { lastCursor: 'keep-me', sourceIndex: { s1: 'note.md' }, connectionId: conn }
     const seenCursors: (string | null)[] = []
     const fetchPage = vi.fn(async (req: { cursor: string | null }) => {
@@ -132,7 +133,7 @@ describe('SyncEngine.sync', () => {
       return { highlights: [], nextCursor: 'next', done: true } as ExportFeedResponse
     })
     const engine = new SyncEngine({
-      getSettings: () => ({ serverUrl: 's', exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
+      getSettings: () => ({ exportToken: 't', folderPath: 'Acorny', syncOnStartup: false, pollIntervalMinutes: 0 }),
       loadState: async () => state,
       saveState: vi.fn(async (s: PluginState) => { state = s }),
       fetchPage: fetchPage as never,
