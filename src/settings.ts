@@ -2,7 +2,6 @@ import { App, Plugin, PluginSettingTab, Setting } from 'obsidian'
 import type { AcornySettings } from './types.js'
 
 export const DEFAULT_SETTINGS: AcornySettings = {
-  serverUrl: 'https://api.acorny.io',
   exportToken: '',
   folderPath: 'Acorny',
   syncOnStartup: true,
@@ -24,14 +23,6 @@ export class AcornySettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this
     containerEl.empty()
-
-    new Setting(containerEl)
-      .setName('Server URL')
-      .setDesc('Your Acorny API base URL.')
-      .addText((t) =>
-        t.setPlaceholder('https://api.acorny.io')
-          .setValue(this.host.settings.serverUrl)
-          .onChange(async (v) => { this.host.settings.serverUrl = v.trim(); await this.host.saveSettings() }))
 
     new Setting(containerEl)
       .setName('Export token')

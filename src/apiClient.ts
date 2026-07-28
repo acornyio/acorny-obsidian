@@ -29,6 +29,9 @@ export interface FetchFeedOptions {
   limit?: number
 }
 
+/** Acorny has a single hosted API — there is no self-hosted deployment to configure. */
+export const ACORNY_API_BASE_URL = 'https://api.acorny.io'
+
 export async function fetchFeedPage(http: HttpRequest, opts: FetchFeedOptions): Promise<ExportFeedResponse> {
   const base = opts.serverUrl.replace(/\/+$/, '')
   const limit = opts.limit ?? 100

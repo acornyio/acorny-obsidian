@@ -1,7 +1,7 @@
 import type {
   AcornySettings, ExportFeedHighlight, ExportFeedResponse, ExportFeedSource, PluginState, SyncStatus,
 } from './types.js'
-import { AuthError, RateLimitError } from './apiClient.js'
+import { AuthError, RateLimitError, ACORNY_API_BASE_URL } from './apiClient.js'
 import { connectionId } from './connection.js'
 
 export type SyncResult =
@@ -41,9 +41,11 @@ export class SyncEngine {
     this.deps.onStatus('syncing')
     try {
       // Snapshot the connection ONCE at sync start so every page of this drain uses
-      // the same server/token even if the user edits Settings mid-sync.
+      // the same account even if the user edits Settings mid-sync. The server is a
+      // build-time constant — Acorny has no self-hosted deployments.
       const settings = this.deps.getSettings()
-      const { serverUrl, exportToken: token } = settings
+      const { exportToken: token } = settings
+      const serverUrl = ACORNY_API_BASE_URL
       const conn = connectionId(serverUrl, token)
 
       const aborted = this.deps.isAborted ?? (() => false)
